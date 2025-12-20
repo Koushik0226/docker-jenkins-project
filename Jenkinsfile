@@ -1,34 +1,28 @@
 pipeline {
   agent {
     kubernetes {
-      label 'jenkins'
-      defaultContainer 'jnlp'
+      label 'kaniko'
+      defaultContainer 'kaniko'
     }
-  }
-
-  environment {
-    IMAGE_NAME = "ikoushiks/nginx-demo"
-    IMAGE_TAG  = "latest"
   }
 
   stages {
-
-    stage('Checkout Code') {
+    stage('Checkout') {
       steps {
-        checkout scm
+        container('jnlp') {
+          checkout scm
+        }
       }
     }
 
-    stage('Build & Push Image (Kaniko)') {
+    stage('Build & Push Image') {
       steps {
-        container('kaniko') {
-          sh '''
+        sh '''
           /kaniko/executor \
             --dockerfile=Dockerfile \
             --context=/workspace \
-            --destination=${IMAGE_NAME}:${IMAGE_TAG}
-          '''
-        }
+            --destination=docker.io/koushik0226/nginx-demo:latest
+        '''
       }
     }
   }
