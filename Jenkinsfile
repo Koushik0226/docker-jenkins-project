@@ -2,8 +2,7 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "ikoushiks/nginx-demo"
-        IMAGE_TAG  = "latest"
+        DOCKER_IMAGE = "ikoushiks/nginx-demo:latest"
     }
 
     stages {
@@ -16,32 +15,13 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build & Push Image using Kaniko') {
             steps {
                 sh '''
-                docker build -t $IMAGE_NAME:$IMAGE_TAG .
-                '''
-            }
-        }
-
-        stage('Docker Hub Login') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh '''
-                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                    '''
-                }
-            }
-        }
-
-        stage('Push Docker Image') {
-            steps {
-                sh '''
-                docker push $IMAGE_NAME:$IMAGE_TAG
+                /kaniko/executor \
+                  --context $WORKSPACE \
+                  --dockerfile Dockerfile.jenkins \
+                  --destination $DOCKER_IMAGE
                 '''
             }
         }
