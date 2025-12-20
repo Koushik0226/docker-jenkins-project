@@ -16,16 +16,36 @@ pipeline {
             }
         }
 
-        stage('Build & Push Image (Kaniko)') {
+        stage('Build & Push Image using Kaniko') {
             steps {
-                container('kaniko') {
-                    sh '''
-                    /kaniko/executor \
-                      --dockerfile=Dockerfile \
-                      --context=/var/jenkins_home/workspace/${JOB_NAME} \
-                      --destination=${IMAGE_NAME}:${IMAGE_TAG}
-                    '''
-                }
+                sh '''
+                cat <<EOF | kubectl apply -f -
+                apiVersion: batch/v1
+                kind: Job
+                metadata:
+                  name: kaniko-build
+                  namespace: devops
+                spec:
+                  backoffLimit: 0
+                  template:
+                    spec:
+                      restartPolicy: Never
+                      containers:
+                      - name: kaniko
+                        image: gcr.io/kaniko-project/executor:latest
+                        args:
+                          - "--dockerfile=Dockerfile"
+                          - "--context=git://github.com/Koushik0226/docker-jenkins-project.git#refs/heads/main"
+                          - "--destination=${IMAGE_NAME}:${IMAGE_TAG}"
+                        volumeMounts:
+                          - name: docker-config
+                            mountPath: /kaniko/.docker
+                      volumes:
+                        - name: docker-config
+                          secret:
+                            secretName: dockerhub-secret
+                EOF
+                '''
             }
         }
     }
