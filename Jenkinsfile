@@ -1,8 +1,8 @@
 pipeline {
   agent {
     kubernetes {
-      inheritFrom 'kaniko'
-      defaultContainer 'kaniko'
+      label 'kaniko'
+      defaultContainer 'jnlp'
     }
   }
 
@@ -10,9 +10,7 @@ pipeline {
 
     stage('Checkout') {
       steps {
-        container('jnlp') {
-          checkout scm
-        }
+        checkout scm
       }
     }
 
@@ -20,10 +18,10 @@ pipeline {
       steps {
         container('kaniko') {
           sh '''
-          /kaniko/executor \
-            --dockerfile=Dockerfile \
-            --context=/var/jenkins_home/workspace/k8s-cicd-pipeline \
-            --destination=docker.io/koushik0226/nginx-demo:latest
+            /kaniko/executor \
+              --dockerfile=Dockerfile \
+              --context=/workspace \
+              --destination=docker.io/koushik0226/nginx-demo:latest
           '''
         }
       }
