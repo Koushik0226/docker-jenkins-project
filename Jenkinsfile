@@ -2,7 +2,8 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "ikoushiks/nginx-demo:latest"
+        IMAGE_NAME = "ikoushiks/nginx-demo"
+        IMAGE_TAG  = "latest"
     }
 
     stages {
@@ -11,18 +12,20 @@ pipeline {
             steps {
                 git branch: 'main',
                     credentialsId: 'github-creds',
-                    url: 'https://github.com/Koushik0226/docker-jenkins-project.git'
+                    url: 'https://github.com/Koushik0226/docker-jenkins-project'
             }
         }
 
-        stage('Build & Push Image using Kaniko') {
+        stage('Build & Push Image (Kaniko)') {
             steps {
-                sh '''
-                /kaniko/executor \
-                  --context $WORKSPACE \
-                  --dockerfile Dockerfile.jenkins \
-                  --destination $DOCKER_IMAGE
-                '''
+                container('kaniko') {
+                    sh '''
+                    /kaniko/executor \
+                      --dockerfile=Dockerfile \
+                      --context=/var/jenkins_home/workspace/${JOB_NAME} \
+                      --destination=${IMAGE_NAME}:${IMAGE_TAG}
+                    '''
+                }
             }
         }
     }
