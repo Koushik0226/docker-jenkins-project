@@ -2,12 +2,17 @@ FROM jenkins/jenkins:lts
 
 USER root
 
-# Install git, docker cli, curl
+# Install dependencies
 RUN apt-get update && \
-    apt-get install -y git docker.io curl && \
-    apt-get clean
+    apt-get install -y curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
-# Add jenkins user to docker group
-RUN groupadd docker || true && usermod -aG docker jenkins
+# Install kubectl (matching cluster version)
+RUN curl -LO https://dl.k8s.io/release/v1.29.15/bin/linux/amd64/kubectl && \
+    chmod +x kubectl && \
+    mv kubectl /usr/local/bin/
+
+# Verify kubectl
+RUN kubectl version --client
 
 USER jenkins
