@@ -1,7 +1,9 @@
 pipeline {
-    agent {
-        kubernetes {
-            yaml """
+  agent {
+    kubernetes {
+      label 'kaniko-agent'
+      defaultContainer 'jnlp'
+      yaml """
 apiVersion: v1
 kind: Pod
 spec:
@@ -9,43 +11,38 @@ spec:
   - name: kaniko
     image: gcr.io/kaniko-project/executor:latest
     command:
-    - cat
+    - /busybox/cat
     tty: true
     volumeMounts:
-    - name: docker-config
+    - name: kaniko-secret
       mountPath: /kaniko/.docker
   volumes:
-  - name: docker-config
+  - name: kaniko-secret
     secret:
       secretName: dockerhub-secret
 """
-        }
+    }
+  }
+
+  stages {
+
+    stage('Checkout Code') {
+      steps {
+        checkout scm
+      }
     }
 
-    environment {
-        IMAGE_NAME = "ikoushiks/nginx-demo"
-        IMAGE_TAG  = "latest"
-    }
-
-    stages {
-
-        stage('Checkout Code') {
-            steps {
-                checkout scm
-            }
+    stage('Build & Push Image') {
+      steps {
+        container('kaniko') {
+          sh '''
+            /kaniko/executor \
+              --dockerfile=Dockerfile \
+              --context=/workspace \
+              --destination=koushik0226/nginx-demo:latest
+          '''
         }
-
-        stage('Build & Push Image') {
-            steps {
-                container('kaniko') {
-                    sh """
-                    /kaniko/executor \
-                      --context=\$(pwd) \
-                      --dockerfile=Dockerfile \
-                      --destination=${IMAGE_NAME}:${IMAGE_TAG}
-                    """
-                }
-            }
-        }
+      }
     }
+  }
 }
