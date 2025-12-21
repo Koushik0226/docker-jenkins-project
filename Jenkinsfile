@@ -7,6 +7,7 @@ pipeline {
   }
 
   stages {
+
     stage('Checkout') {
       steps {
         checkout scm
@@ -19,7 +20,7 @@ pipeline {
           sh '''
             /kaniko/executor \
               --dockerfile=Dockerfile \
-              --context=/workspace \
+              --context=$WORKSPACE \
               --destination=docker.io/koushik0226/nginx-demo:latest
           '''
         }
