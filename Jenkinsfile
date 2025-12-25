@@ -58,7 +58,7 @@ spec:
             /kaniko/executor \
               --dockerfile=Dockerfile \
               --context=/workspace \
-              --destination=docker.io/<DOCKERHUB_USERNAME>/nginx-demo:latest
+              --destination=docker.io/ikoushiks/nginx-demo:latest
           '''
         }
       }
