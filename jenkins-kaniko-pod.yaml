@@ -1,35 +1,28 @@
 apiVersion: v1
 kind: Pod
 spec:
-  serviceAccountName: jenkins
-
-  volumes:
-    - name: workspace
-      emptyDir: {}
-
-    - name: docker-config
-      secret:
-        secretName: dockerhub-secret
-
   containers:
     - name: jnlp
       image: jenkins/inbound-agent:latest
-      workingDir: /home/jenkins/agent
+      args: ['$(JENKINS_SECRET)', '$(JENKINS_NAME)']
       volumeMounts:
-        - name: workspace
+        - name: workspace-volume
           mountPath: /home/jenkins/agent
 
     - name: kaniko
       image: gcr.io/kaniko-project/executor:latest
-      workingDir: /workspace
       command:
-        - /busybox/sh
-      args:
-        - -c
-        - cat
+        - /busybox/cat
       tty: true
       volumeMounts:
-        - name: workspace
+        - name: workspace-volume
           mountPath: /workspace
         - name: docker-config
           mountPath: /kaniko/.docker
+
+  volumes:
+    - name: workspace-volume
+      emptyDir: {}
+    - name: docker-config
+      secret:
+        secretName: dockerhub-secret
