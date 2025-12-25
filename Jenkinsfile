@@ -1,7 +1,7 @@
 pipeline {
   agent {
     kubernetes {
-      yamlFile 'jenkins-kaniko.yaml'
+      yamlFile 'jenkins-kaniko-pod.yaml'
       defaultContainer 'kaniko'
     }
   }
@@ -15,7 +15,7 @@ pipeline {
       }
     }
 
-    stage('Build & Push Image') {
+    stage('Build & Push') {
       steps {
         sh '''
         /kaniko/executor \
