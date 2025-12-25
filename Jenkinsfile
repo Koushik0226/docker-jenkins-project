@@ -7,6 +7,7 @@ pipeline {
   }
 
   stages {
+
     stage('Checkout') {
       steps {
         container('jnlp') {
@@ -15,7 +16,7 @@ pipeline {
       }
     }
 
-    stage('Build & Push') {
+    stage('Build & Push Image') {
       steps {
         sh '''
         /kaniko/executor \
