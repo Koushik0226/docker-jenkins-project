@@ -1,13 +1,10 @@
 pipeline {
   agent {
     kubernetes {
-      label 'kaniko-agent'
-      defaultContainer 'kaniko'
       yaml """
 apiVersion: v1
 kind: Pod
 spec:
-  serviceAccountName: jenkins
   containers:
   - name: kaniko
     image: gcr.io/kaniko-project/executor:debug
@@ -17,8 +14,6 @@ spec:
     volumeMounts:
     - name: docker-config
       mountPath: /kaniko/.docker
-  - name: jnlp
-    image: jenkins/inbound-agent:latest
   volumes:
   - name: docker-config
     secret:
@@ -36,12 +31,14 @@ spec:
 
     stage('Build & Push Image') {
       steps {
-        sh '''
-          /kaniko/executor \
-            --dockerfile=Dockerfile \
-            --context=. \
-            --destination=docker.io/ikoushiks/nginx-demo:latest
-        '''
+        container('kaniko') {
+          sh '''
+            /kaniko/executor \
+              --dockerfile=Dockerfile \
+              --context=$(pwd) \
+              --destination=ikoushiks/nginx-demo:latest
+          '''
+        }
       }
     }
   }
