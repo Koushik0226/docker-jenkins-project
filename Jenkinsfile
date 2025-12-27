@@ -1,13 +1,36 @@
 pipeline {
   agent {
     kubernetes {
-      label 'kaniko'
-      defaultContainer 'kaniko'
+      yaml """
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: kaniko
+spec:
+  containers:
+  - name: jnlp
+    image: jenkins/inbound-agent:latest
+
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:latest
+    command:
+    - cat
+    tty: true
+    volumeMounts:
+    - name: docker-config
+      mountPath: /kaniko/.docker
+
+  volumes:
+  - name: docker-config
+    secret:
+      secretName: dockerhub-secret
+"""
     }
   }
 
   stages {
-    stage('Checkout') {
+    stage('Checkout Code') {
       steps {
         container('jnlp') {
           checkout scm
@@ -17,12 +40,14 @@ pipeline {
 
     stage('Build & Push Image') {
       steps {
-        sh '''
-        /kaniko/executor \
-          --context=$WORKSPACE \
-          --dockerfile=$WORKSPACE/Dockerfile \
-          --destination=ikoushiks/nginx-demo:latest
-        '''
+        container('kaniko') {
+          sh '''
+            /kaniko/executor \
+              --dockerfile=Dockerfile \
+              --context=$(pwd) \
+              --destination=ikoushiks/nginx-demo:latest
+          '''
+        }
       }
     }
   }
