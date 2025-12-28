@@ -40,10 +40,13 @@ spec:
             steps {
                 container('image-builder-agent') {
                     script {
+                        sh 'sudo dockerd > /var/log/dockerd.log 2>&1 &'
+                        sh 'sleep 10'
+
                         git branch: 'main', url: 'https://github.com/Koushik0226/docker-jenkins-project.git'
                         
                         sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
-                        
+
                         dir('APP') {
                             sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
                             sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
