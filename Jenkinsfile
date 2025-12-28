@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent any 
 
     environment {
         DOCKERHUB_USER = "ikoushiks" 
@@ -24,7 +24,7 @@ spec:
     image: docker.io/sayantan2k21/image-builder-k8s-agent:rhel9
     securityContext:
       privileged: true
-    # FIX: Start Docker Daemon in background, wait 5s, then keep container running
+    # Start Docker Daemon in background, wait 5s, then keep container running
     command:
     - /bin/sh
     - -c
@@ -44,22 +44,45 @@ spec:
                     container('image-builder-agent') {
                         script {
                             echo "Checkout Source Code..."
-                            dir('App') {
-                                echo "Current Directory: ${pwd()}"
-                                
-                                echo "Building Docker Image: ${IMAGE_NAME}:${IMAGE_TAG}"
-                                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
-                                
-                                echo "Login to DockerHub..."
-                                sh "echo $PASS | docker login -u $USER --password-stdin"
-                                
-                                echo "Pushing Image..."
-                                sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
-                            }
+                            checkout scm
+
+                            echo "Logging into Docker Hub..."
+                            sh "echo $PASS | docker login -u $USER --password-stdin"
+
+                            echo "Building Docker Image: ${IMAGE_NAME}:${IMAGE_TAG}..."
+                            sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ./App"
+
+                            echo "Pushing Image to Docker Hub..."
+                            sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
                         }
                     }
                 }
             }
+        }
+
+        stage('Trigger Ansible Deployment') {
+            steps {
+                script {
+                    echo "Triggering Remote Ansible Pod..."
+                    
+                    sh """
+                    kubectl exec -n devops deployment/ansible -c ansible -- bash -c 'cat <<EOF > /tmp/deploy-script.sh
+ansible-playbook /home/ansible/playbooks/deploy-app.yml --extra-vars "image_name=${IMAGE_NAME} image_tag=${IMAGE_TAG} app_name=${APP_NAME}"
+EOF'
+                    """
+
+                    sh "kubectl exec -n devops deployment/ansible -c ansible -- bash /tmp/deploy-script.sh"
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline completed successfully! App Deployed."
+        }
+        failure {
+            echo "Pipeline Failed. Check logs."
         }
     }
 }
