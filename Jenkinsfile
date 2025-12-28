@@ -2,13 +2,9 @@ pipeline {
     agent any 
 
     environment {
-
         DOCKERHUB_USER = "ikoushiks" 
-        
         APP_NAME = "docker-jenkins-project" 
-        
         IMAGE_NAME = "${DOCKERHUB_USER}/${APP_NAME}"
-        
         IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
@@ -28,7 +24,7 @@ spec:
     image: docker.io/sayantan2k21/image-builder-k8s-agent:rhel9
     securityContext:
       privileged: true
-    # FIX: Start Docker Daemon in background, wait 5s, then keep container running with cat
+    # Start Docker Daemon in background, wait 5s, then keep container running
     command:
     - /bin/sh
     - -c
@@ -54,7 +50,7 @@ spec:
                             sh "echo $PASS | docker login -u $USER --password-stdin"
 
                             echo "Building Docker Image: ${IMAGE_NAME}:${IMAGE_TAG}..."
-                            sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                            sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ./App"
 
                             echo "Pushing Image to Docker Hub..."
                             sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
