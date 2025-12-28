@@ -3,7 +3,6 @@ pipeline {
 
     environment {
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-cred')
-        
         IMAGE_NAME = "docker.io/ikoushiks/06-flask-test-app" 
         IMAGE_TAG = "${BUILD_NUMBER}"
         APP_NAME = "06-flask-test-app"
@@ -41,13 +40,21 @@ spec:
                 container('image-builder-agent') {
                     script {
                         sh 'sudo dockerd > /var/log/dockerd.log 2>&1 &'
-                        sh 'sleep 10'
+                        sh 'sleep 10' 
 
                         git branch: 'main', url: 'https://github.com/Koushik0226/docker-jenkins-project.git'
                         
+                        sh 'echo "--- DEBUG: LISTING ALL FILES ---"'
+                        sh 'ls -R'
+                        sh 'echo "--------------------------------"'
+
                         sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+                        
 
                         dir('APP') {
+                            sh 'echo "--- DEBUG: FILES INSIDE APP FOLDER ---"'
+                            sh 'ls -la' 
+                            
                             sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
                             sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
                         }
@@ -63,20 +70,10 @@ spec:
                     kubectl exec -n devops deployment/ansible -c ansible -- bash -c 'cat <<EOF > /tmp/deploy-script.sh
 ansible-playbook /home/ansible/playbooks/deploy-app.yml --extra-vars "image_name=${IMAGE_NAME} image_tag=${IMAGE_TAG} app_name=${APP_NAME}"
 EOF'
-                    
                     kubectl exec -n devops deployment/ansible -c ansible -- bash /tmp/deploy-script.sh
                     """
                 }
             }
-        }
-    }
-    
-    post {
-        success {
-            echo 'Deployment successful!'
-        }
-        failure {
-            echo 'Deployment failed!'
         }
     }
 }
