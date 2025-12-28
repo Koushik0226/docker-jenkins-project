@@ -1,5 +1,6 @@
 pipeline {
-    agent any 
+    agent any
+    }
 
     environment {
         DOCKERHUB_USER = "ikoushiks" 
@@ -48,8 +49,3 @@ spec:
                         script {
                             echo "Checkout Source Code..."
                             checkout scm
-
-                            echo "Logging into Docker Hub..."
-                            sh "echo $PASS | docker login -u $USER --password-stdin"
-
-                            echo "Building Docker Image: ${IMAGE_NAME}:${IMAGE_TAG}
