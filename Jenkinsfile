@@ -1,14 +1,10 @@
 pipeline {
     agent any
-    }
 
     environment {
         DOCKERHUB_USER = "ikoushiks" 
-        
         APP_NAME = "docker-jenkins-project" 
-        
         IMAGE_NAME = "${DOCKERHUB_USER}/${APP_NAME}"
-        
         IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
@@ -49,3 +45,19 @@ spec:
                         script {
                             echo "Checkout Source Code..."
                             checkout scm
+
+                            echo "Building Docker Image: ${IMAGE_NAME}:${IMAGE_TAG}"
+                            sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                            
+                            echo "Login to DockerHub..."
+                            sh "echo $PASS | docker login -u $USER --password-stdin"
+                            
+                            echo "Pushing Image..."
+                            sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
