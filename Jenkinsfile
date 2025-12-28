@@ -28,8 +28,11 @@ spec:
     image: docker.io/sayantan2k21/image-builder-k8s-agent:rhel9
     securityContext:
       privileged: true
+    # FIX: Start Docker Daemon in background, wait 5s, then keep container running with cat
     command:
-    - cat
+    - /bin/sh
+    - -c
+    - "sudo dockerd --host=unix:///var/run/docker.sock & sleep 5 && cat"
     tty: true
     volumeMounts:
     - name: docker-graph-storage
@@ -80,10 +83,10 @@ EOF'
 
     post {
         success {
-            echo "Pipeline completed successfully! App ${APP_NAME} deployed."
+            echo "Pipeline completed successfully! App Deployed."
         }
         failure {
-            echo "Pipeline Failed."
+            echo "Pipeline Failed. Check logs."
         }
     }
 }
