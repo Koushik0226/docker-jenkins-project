@@ -1,78 +1,52 @@
 pipeline {
-    agent any 
+    agent any
 
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-cred')
-        IMAGE_NAME = "docker.io/ikoushiks/06-flask-test-app" 
-        IMAGE_TAG = "${BUILD_NUMBER}"
-        APP_NAME = "06-flask-test-app"
+        // Name your image
+        IMAGE_NAME = "my-python-flask-app"
     }
 
     stages {
-        stage('Docker Build & Push') {
-            agent {
-                kubernetes {
-                    yaml """
-apiVersion: v1
-kind: Pod
-metadata:
-  labels:
-    app: image-builder-agent
-spec:
-  containers:
-  - name: image-builder-agent
-    image: docker.io/sayantan2k21/image-builder-k8s-agent:rhel9
-    securityContext:
-      privileged: true
-    command:
-    - cat
-    tty: true
-    volumeMounts:
-    - name: docker-graph-storage
-      mountPath: /var/lib/docker
-  volumes:
-  - name: docker-graph-storage
-    emptyDir: {}
-"""
-                }
-            }
+        stage('Checkout') {
             steps {
-                container('image-builder-agent') {
-                    script {
-                        sh 'sudo dockerd > /var/log/dockerd.log 2>&1 &'
-                        sh 'sleep 10' 
+                // Pulls code from your git repo (Automatic in most Jenkins setups)
+                checkout scm
+            }
+        }
 
-                        git branch: 'main', url: 'https://github.com/Koushik0226/docker-jenkins-project.git'
-                        
-                        sh 'echo "--- DEBUG: LISTING ALL FILES ---"'
-                        sh 'ls -R'
-                        sh 'echo "--------------------------------"'
-
-                        sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
-                        
-
-                        dir('APP') {
-                            sh 'echo "--- DEBUG: FILES INSIDE APP FOLDER ---"'
-                            sh 'ls -la' 
-                            
-                            sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
-                            sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
-                        }
-                    }
+        stage('Build Image') {
+            steps {
+                script {
+                    echo 'Building Docker Image...'
+                    // CRITICAL: We point to the ./App directory for the build context
+                    // This command says: "Look in ./App for the Dockerfile and code"
+                    sh "docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} ./App"
                 }
             }
         }
 
-        stage('Trigger Ansible Deployment') {
+        stage('Test') {
             steps {
                 script {
-                    sh """
-                    kubectl exec -n devops deployment/ansible -c ansible -- bash -c 'cat <<EOF > /tmp/deploy-script.sh
-ansible-playbook /home/ansible/playbooks/deploy-app.yml --extra-vars "image_name=${IMAGE_NAME} image_tag=${IMAGE_TAG} app_name=${APP_NAME}"
-EOF'
-                    kubectl exec -n devops deployment/ansible -c ansible -- bash /tmp/deploy-script.sh
-                    """
+                    echo 'Running Tests...'
+                    // Example: Run a temporary container to check if it starts
+                    sh "docker run -d -p 5000:5000 --name test-container ${IMAGE_NAME}:${BUILD_NUMBER}"
+                    sh "sleep 5" // Give it a moment to boot
+                    sh "curl http://localhost:5000" // Check if it responds
                 }
+            }
+            post {
+                always {
+                    // Clean up the test container
+                    sh "docker rm -f test-container"
+                }
+            }
+        }
+
+        stage('Push/Deploy') {
+            steps {
+                echo 'Placeholder: Push to Registry or Deploy to Server'
+                // sh "docker push ${IMAGE_NAME}:${BUILD_NUMBER}"
             }
         }
     }
