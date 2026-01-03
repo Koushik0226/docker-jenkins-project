@@ -1,17 +1,25 @@
 pipeline {
+    // Global agent is 'any'. This runs on the Jenkins Master by default,
+    // which allows us to use 'kubectl' in the deployment stage (solving the error on PDF Page 68).
     agent any 
 
     environment {
-        DOCKERHUB_USER = "ikoushiks" 
-        APP_NAME = "docker-jenkins-project" 
-        IMAGE_NAME = "${DOCKERHUB_USER}/${APP_NAME}"
+        // YOUR DETAILS ADDED HERE
+        DOCKER_IMAGE = "ikoushiks/docker-jenkins-project" 
+        APP_NAME = "docker-jenkins-project"
         IMAGE_TAG = "${BUILD_NUMBER}"
+        
+        // Ensure this matches the ID you created in Jenkins (PDF Page 44)
+        DOCKER_CRED_ID = "dockerhub-cred" 
     }
 
     stages {
+        // STAGE 1: Build & Push (Runs inside the dynamic K8s Agent)
         stage('Docker Build & Push') {
             agent {
                 kubernetes {
+                    // We use the RHEL9 image as specified in the PDF (Page 67)
+                    // The standard Alpine image causes iptables errors.
                     yaml """
 apiVersion: v1
 kind: Pod
@@ -24,11 +32,8 @@ spec:
     image: docker.io/sayantan2k21/image-builder-k8s-agent:rhel9
     securityContext:
       privileged: true
-    # Start Docker Daemon in background, wait 5s, then keep container running
     command:
-    - /bin/sh
-    - -c
-    - "sudo dockerd --host=unix:///var/run/docker.sock & sleep 5 && cat"
+    - cat
     tty: true
     volumeMounts:
     - name: docker-graph-storage
@@ -40,49 +45,48 @@ spec:
                 }
             }
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-cred', passwordVariable: 'PASS', usernameVariable: 'USER')]) {
+                withCredentials([usernamePassword(credentialsId: DOCKER_CRED_ID, passwordVariable: 'PASS', usernameVariable: 'USER')]) {
                     container('image-builder-agent') {
                         script {
-                            echo "Checkout Source Code..."
-                            checkout scm
-
-                            echo "Logging into Docker Hub..."
+                            echo "Building Docker Image..."
+                            // ⚠️ IMPORTANT: If your Dockerfile is inside a folder named 'APP' (like in the PDF),
+                            // uncomment the line below. Otherwise, use the standard build command.
+                            // sh "cd APP/ && docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} ."
+                            
+                            sh "docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} ."
+                            
+                            echo "Login to Docker Hub..."
                             sh "echo $PASS | docker login -u $USER --password-stdin"
-
-                            echo "Building Docker Image: ${IMAGE_NAME}:${IMAGE_TAG}..."
-                            sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ./App"
-
-                            echo "Pushing Image to Docker Hub..."
-                            sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
+                            
+                            echo "Pushing Image..."
+                            sh "docker push ${DOCKER_IMAGE}:${IMAGE_TAG}"
                         }
                     }
                 }
             }
         }
 
+        // STAGE 2: Deploy (Runs on Jenkins Master)
         stage('Trigger Ansible Deployment') {
             steps {
                 script {
-                    echo "Triggering Remote Ansible Pod..."
-                    
+                    echo "Triggering Ansible Pod to deploy..."
+                    // This runs on the Master node, so 'kubectl' works here.
+                    // It passes YOUR specific image/app variables to the Ansible playbook.
                     sh """
                     kubectl exec -n devops deployment/ansible -c ansible -- bash -c 'cat <<EOF > /tmp/deploy-script.sh
-ansible-playbook /home/ansible/playbooks/deploy-app.yml --extra-vars "image_name=${IMAGE_NAME} image_tag=${IMAGE_TAG} app_name=${APP_NAME}"
+ansible-playbook /home/ansible/playbooks/deploy-app.yml --extra-vars "image_name=${DOCKER_IMAGE} image_tag=${IMAGE_TAG} app_name=${APP_NAME}"
 EOF'
+                    kubectl exec -n devops deployment/ansible -c ansible -- bash /tmp/deploy-script.sh
                     """
-
-                    sh "kubectl exec -n devops deployment/ansible -c ansible -- bash /tmp/deploy-script.sh"
                 }
             }
         }
     }
 
     post {
-        success {
-            echo "Pipeline completed successfully! App Deployed."
-        }
-        failure {
-            echo "Pipeline Failed. Check logs."
+        always {
+            echo "Pipeline finished."
         }
     }
 }
