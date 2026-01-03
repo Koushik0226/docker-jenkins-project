@@ -2,11 +2,10 @@ pipeline {
     agent any 
 
     environment {
-        DOCKER_IMAGE = "ikoushiks/docker-jenkins-project" 
-        APP_NAME = "docker-jenkins-project"
+        DOCKERHUB_USER = "ikoushiks" 
+        APP_NAME = "docker-jenkins-project" 
+        IMAGE_NAME = "${DOCKERHUB_USER}/${APP_NAME}"
         IMAGE_TAG = "${BUILD_NUMBER}"
-        
-        DOCKER_CRED_ID = "dockerhub-cred" 
     }
 
     stages {
@@ -25,8 +24,11 @@ spec:
     image: docker.io/sayantan2k21/image-builder-k8s-agent:rhel9
     securityContext:
       privileged: true
+    # Start Docker Daemon in background, wait 5s, then keep container running
     command:
-    - cat
+    - /bin/sh
+    - -c
+    - "sudo dockerd --host=unix:///var/run/docker.sock & sleep 5 && cat"
     tty: true
     volumeMounts:
     - name: docker-graph-storage
@@ -38,22 +40,20 @@ spec:
                 }
             }
             steps {
-                withCredentials([usernamePassword(credentialsId: DOCKER_CRED_ID, passwordVariable: 'PASS', usernameVariable: 'USER')]) {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-cred', passwordVariable: 'PASS', usernameVariable: 'USER')]) {
                     container('image-builder-agent') {
                         script {
-                            echo "Starting Docker Daemon..."
-                            sh 'sudo dockerd > /dev/null 2>&1 &'
-                            
-                            sh 'sleep 10'
-                            
-                            echo "Building Docker Image..."
-                            sh "docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} ."
-                            
-                            echo "Login to Docker Hub..."
+                            echo "Checkout Source Code..."
+                            checkout scm
+
+                            echo "Logging into Docker Hub..."
                             sh "echo $PASS | docker login -u $USER --password-stdin"
-                            
-                            echo "Pushing Image..."
-                            sh "docker push ${DOCKER_IMAGE}:${IMAGE_TAG}"
+
+                            echo "Building Docker Image: ${IMAGE_NAME}:${IMAGE_TAG}..."
+                            sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ./App"
+
+                            echo "Pushing Image to Docker Hub..."
+                            sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
                         }
                     }
                 }
@@ -63,21 +63,26 @@ spec:
         stage('Trigger Ansible Deployment') {
             steps {
                 script {
-                    echo "Triggering Ansible Pod to deploy..."
+                    echo "Triggering Remote Ansible Pod..."
+                    
                     sh """
                     kubectl exec -n devops deployment/ansible -c ansible -- bash -c 'cat <<EOF > /tmp/deploy-script.sh
-ansible-playbook /home/ansible/playbooks/deploy-app.yml --extra-vars "image_name=${DOCKER_IMAGE} image_tag=${IMAGE_TAG} app_name=${APP_NAME}"
+ansible-playbook /home/ansible/playbooks/deploy-app.yml --extra-vars "image_name=${IMAGE_NAME} image_tag=${IMAGE_TAG} app_name=${APP_NAME}"
 EOF'
-                    kubectl exec -n devops deployment/ansible -c ansible -- bash /tmp/deploy-script.sh
                     """
+
+                    sh "kubectl exec -n devops deployment/ansible -c ansible -- bash /tmp/deploy-script.sh"
                 }
             }
         }
     }
 
     post {
-        always {
-            echo "Pipeline finished."
+        success {
+            echo "Pipeline completed successfully! App Deployed."
+        }
+        failure {
+            echo "Pipeline Failed. Check logs."
         }
     }
 }
