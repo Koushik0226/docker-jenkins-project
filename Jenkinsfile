@@ -50,6 +50,7 @@ spec:
                             sh "echo $PASS | docker login -u $USER --password-stdin"
 
                             echo "Building Docker Image: ${IMAGE_NAME}:${IMAGE_TAG}..."
+                            // Builds from the 'App' directory
                             sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ./App"
 
                             echo "Pushing Image to Docker Hub..."
@@ -65,12 +66,14 @@ spec:
                 script {
                     echo "Triggering Remote Ansible Pod..."
                     
+                    // Creates the deployment script inside the Ansible pod
                     sh """
                     kubectl exec -n devops deployment/ansible -c ansible -- bash -c 'cat <<EOF > /tmp/deploy-script.sh
 ansible-playbook /home/ansible/playbooks/deploy-app.yml --extra-vars "image_name=${IMAGE_NAME} image_tag=${IMAGE_TAG} app_name=${APP_NAME}"
 EOF'
                     """
 
+                    // Executes the script
                     sh "kubectl exec -n devops deployment/ansible -c ansible -- bash /tmp/deploy-script.sh"
                 }
             }
